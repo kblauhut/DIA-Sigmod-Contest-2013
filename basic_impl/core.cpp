@@ -63,18 +63,62 @@ ErrorCode GetNextAvailRes(DocID *p_doc_id, unsigned int *p_num_res,
   return EC_SUCCESS;
 }
 
+bool WordMatchExact(const char *doc_str, const char *query_word) {
+  // TODO: Implement this function
+  return true;
+}
+bool WordMatchHammingDist(const char *doc_str, const char *query_word,
+                          unsigned int match_dist) {
+  // TODO: Implement this function
+  return true;
+}
+bool WordMatchEditDist(const char *doc_str, const char *query_word,
+                       unsigned int match_dist) {
+  // TODO: Implement this function
+  return true;
+}
+
 ErrorCode MatchDocument(DocID doc_id, const char *doc_str) {
   vector<unsigned int> query_ids;
 
   for (vector<Query>::iterator query = begin(queries); query != end(queries);
        ++query) {
-    switch (query->match_type) {
-    case MT_EXACT_MATCH:
-      break;
-    case MT_HAMMING_DIST:
-      break;
-    case MT_EDIT_DIST:
-      break;
+    bool matching_query = true;
+    unsigned int word_start_idx = 0;
+
+    for (size_t i = 0; i < strlen(query->str); i++) {
+      if (query->str[i] != ' ') {
+        continue;
+      }
+
+      unsigned int word_len = i - word_start_idx;
+      char *query_word = (char *)malloc(word_len + 1);
+      strncpy(query_word, query->str + word_start_idx, word_len);
+      query_word[word_len] = '\0';
+
+      switch (query->match_type) {
+      case MT_EXACT_MATCH:
+        if (!WordMatchExact(doc_str, query_word)) {
+          matching_query = false;
+        }
+        break;
+      case MT_HAMMING_DIST:
+        if (!WordMatchHammingDist(doc_str, query_word, query->match_dist)) {
+          matching_query = false;
+        }
+        break;
+      case MT_EDIT_DIST:
+        if (!WordMatchEditDist(doc_str, query_word, query->match_dist)) {
+          matching_query = false;
+        }
+        break;
+      }
+
+      word_start_idx = i + 1;
+    }
+
+    if (matching_query) {
+      query_ids.push_back(query->query_id);
     }
   }
 
