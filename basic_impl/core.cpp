@@ -28,12 +28,12 @@ ErrorCode DestroyIndex() { return EC_SUCCESS; }
 
 ErrorCode StartQuery(QueryID query_id, const char *query_str,
                      MatchType match_type, unsigned int match_dist) {
-  Query query;
-  query.query_id = query_id;
+  Query query = {
+      .query_id = query_id,
+      .match_type = match_type,
+      .match_dist = match_dist,
+  };
   strcpy(query.str, query_str);
-  query.match_type = match_type;
-  query.match_dist = match_dist;
-  // Add this query to the active query set
   queries.push_back(query);
   return EC_SUCCESS;
 }
@@ -49,10 +49,6 @@ ErrorCode EndQuery(QueryID query_id) {
   return EC_SUCCESS;
 }
 
-ErrorCode MatchDocument(DocID doc_id, const char *doc_str) {
-  return EC_SUCCESS;
-}
-
 ErrorCode GetNextAvailRes(DocID *p_doc_id, unsigned int *p_num_res,
                           QueryID **p_query_ids) {
   *p_doc_id = 0;
@@ -64,5 +60,39 @@ ErrorCode GetNextAvailRes(DocID *p_doc_id, unsigned int *p_num_res,
   *p_num_res = docs[0].num_res;
   *p_query_ids = docs[0].query_ids;
   docs.erase(docs.begin());
+  return EC_SUCCESS;
+}
+
+ErrorCode MatchDocument(DocID doc_id, const char *doc_str) {
+  vector<unsigned int> query_ids;
+
+  for (vector<Query>::iterator query = begin(queries); query != end(queries);
+       ++query) {
+    switch (query->match_type) {
+    case MT_EXACT_MATCH:
+      break;
+    case MT_HAMMING_DIST:
+      break;
+    case MT_EDIT_DIST:
+      break;
+    }
+  }
+
+  Document doc = {
+      .doc_id = doc_id,
+      .num_res = query_ids.size(),
+      .query_ids = 0,
+  };
+
+  if (doc.num_res) {
+    doc.query_ids = (unsigned int *)malloc(doc.num_res * sizeof(unsigned int));
+  }
+
+  for (int i = 0; i < doc.num_res; i++) {
+    doc.query_ids[i] = query_ids[i];
+  }
+
+  docs.push_back(doc);
+
   return EC_SUCCESS;
 }
