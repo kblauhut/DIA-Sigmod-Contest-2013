@@ -1,8 +1,11 @@
 #include "../include/core.h"
+#include "helpers.cpp"
+#include "levenshtein.cpp"
 
 #include <cstdio>
 #include <cstdlib>
 #include <cstring>
+#include <functional>
 #include <vector>
 using namespace std;
 
@@ -63,19 +66,45 @@ ErrorCode GetNextAvailRes(DocID *p_doc_id, unsigned int *p_num_res,
   return EC_SUCCESS;
 }
 
-bool WordMatchExact(const char *doc_str, const char *query_word) {
-  // TODO: Implement this function
-  return true;
+bool WordMatchExact(const char *doc_str, const char *query_word,
+                    int query_word_len) {
+  return SomeWord(doc_str, [&](const char *word, int len) {
+    return len == query_word_len && strncmp(word, query_word, len) == 0;
+  });
 }
+
 bool WordMatchHammingDist(const char *doc_str, const char *query_word,
-                          unsigned int match_dist) {
-  // TODO: Implement this function
-  return true;
+                          int query_word_len, unsigned int match_dist) {
+
+  return SomeWord(doc_str, [&](const char *word, int len) {
+    if (len != query_word_len) {
+      return false;
+    }
+
+    unsigned int num_mismatches = 0;
+    for (int i = 0; i < len; i++) {
+      if (word[i] != query_word[i]) {
+        num_mismatches++;
+      }
+      if (num_mismatches > match_dist) {
+        return false;
+      }
+    }
+
+    return true;
+  });
 }
+
 bool WordMatchEditDist(const char *doc_str, const char *query_word,
-                       unsigned int match_dist) {
-  // TODO: Implement this function
-  return true;
+                       int query_word_len, unsigned int match_dist) {
+
+  return SomeWord(doc_str, [&](const char *word, int len) {
+    if (LevenshteinDistance(word, len, query_word, query_word_len) <=
+        match_dist) {
+      return true;
+    }
+    return false;
+  });
 }
 
 ErrorCode MatchDocument(DocID doc_id, const char *doc_str) {
@@ -83,49 +112,31 @@ ErrorCode MatchDocument(DocID doc_id, const char *doc_str) {
 
   for (vector<Query>::iterator query = begin(queries); query != end(queries);
        ++query) {
-    bool matching_query = true;
-    unsigned int word_start_idx = 0;
-
-    for (size_t i = 0; i < strlen(query->str); i++) {
-      if (query->str[i] != ' ') {
-        continue;
-      }
-
-      unsigned int word_len = i - word_start_idx;
-      char *query_word = (char *)malloc(word_len + 1);
-      strncpy(query_word, query->str + word_start_idx, word_len);
-      query_word[word_len] = '\0';
-
+    bool matching_query = EveryWord(query->str, [&](const char *query_word,
+                                                    int len) {
       switch (query->match_type) {
       case MT_EXACT_MATCH:
-        if (!WordMatchExact(doc_str, query_word)) {
-          matching_query = false;
-        }
-        break;
+        return WordMatchExact(doc_str, query_word, len);
       case MT_HAMMING_DIST:
-        if (!WordMatchHammingDist(doc_str, query_word, query->match_dist)) {
-          matching_query = false;
-        }
-        break;
+        return WordMatchHammingDist(doc_str, query_word, len,
+                                    query->match_dist);
       case MT_EDIT_DIST:
-        if (!WordMatchEditDist(doc_str, query_word, query->match_dist)) {
-          matching_query = false;
-        }
-        break;
-      }
-
-      word_start_idx = i + 1;
-    }
+        return WordMatchEditDist(doc_str, query_word, len, query->match_dist);
+      };
+    });
 
     if (matching_query) {
       query_ids.push_back(query->query_id);
     }
+
+    // printf("doc_id: %d, query_id: %d, matches_bool: %d, query_type: %d\n",
+    //        doc_id, query->query_id, matching_query, query->match_type);
   }
 
   Document doc = {
       .doc_id = doc_id,
-      .num_res = query_ids.size(),
-      .query_ids = 0,
+      .num_res = static_cast<unsigned int>(query_ids.size()),
+      .query_ids = nullptr,
   };
 
   if (doc.num_res) {

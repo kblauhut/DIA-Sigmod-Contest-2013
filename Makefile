@@ -35,7 +35,7 @@ IMPL_O=basic_impl/core.o
 # Compiler flags
 CC  = gcc
 CXX = g++
-CFLAGS=-O3 -fPIC -Wall -g -I. -I./include
+CFLAGS=-std=c++11 -stdlib=libc++ -O3 -fPIC -Wall -g -I. -I./include
 CXXFLAGS=$(CFLAGS)
 LDFLAGS=-lpthread
 
