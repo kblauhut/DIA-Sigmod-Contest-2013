@@ -1,6 +1,7 @@
 #include "../include/core.h"
 
-// TODO: Add our own, unoptimized implementation of the Levenshtein distance
+// TODO: Add optimized implementation of the Levenshtein distance using Myers'
+// algorithm.
 int LevenshteinDistance(const char *a, int na, const char *b, int nb) {
   int oo = 0x7FFFFFFF;
 
