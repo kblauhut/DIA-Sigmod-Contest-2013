@@ -1,5 +1,6 @@
 #include "../include/core.h"
 
+// TODO: Add our own, unoptimized implementation of the Levenshtein distance
 int LevenshteinDistance(const char *a, int na, const char *b, int nb) {
   int oo = 0x7FFFFFFF;
 

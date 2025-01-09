@@ -128,9 +128,6 @@ ErrorCode MatchDocument(DocID doc_id, const char *doc_str) {
     if (matching_query) {
       query_ids.push_back(query->query_id);
     }
-
-    // printf("doc_id: %d, query_id: %d, matches_bool: %d, query_type: %d\n",
-    //        doc_id, query->query_id, matching_query, query->match_type);
   }
 
   Document doc = {
