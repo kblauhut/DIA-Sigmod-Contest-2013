@@ -6,7 +6,10 @@
 #include <cstdlib>
 #include <cstring>
 #include <functional>
+#include <future>
+#include <thread>
 #include <vector>
+
 using namespace std;
 
 struct Query {
@@ -97,7 +100,6 @@ bool WordMatchHammingDist(const char *doc_str, const char *query_word,
 
 bool WordMatchEditDist(const char *doc_str, const char *query_word,
                        int query_word_len, unsigned int match_dist) {
-
   return SomeWord(doc_str, [&](const char *word, int len) {
     if (LevenshteinDistance(word, len, query_word, query_word_len) <=
         match_dist) {
@@ -107,26 +109,38 @@ bool WordMatchEditDist(const char *doc_str, const char *query_word,
   });
 }
 
+bool MatchQuery(const char *doc_str, const char *query_str, int match_dist,
+                MatchType match_type) {
+  return EveryWord(query_str, [&](const char *query_word, int len) {
+    switch (match_type) {
+    case MT_EXACT_MATCH:
+      return WordMatchExact(doc_str, query_word, len);
+    case MT_HAMMING_DIST:
+      return WordMatchHammingDist(doc_str, query_word, len, match_dist);
+    case MT_EDIT_DIST:
+      return WordMatchEditDist(doc_str, query_word, len, match_dist);
+    default:
+      fprintf(stderr, "Unknown match type: %d\n", match_type);
+      return false;
+    };
+  });
+}
+
 ErrorCode MatchDocument(DocID doc_id, const char *doc_str) {
-  vector<unsigned int> query_ids;
+  vector<QueryID> query_ids;
+  vector<tuple<QueryID, future<bool>>> futures;
 
-  for (vector<Query>::iterator query = begin(queries); query != end(queries);
-       ++query) {
-    bool matching_query = EveryWord(query->str, [&](const char *query_word,
-                                                    int len) {
-      switch (query->match_type) {
-      case MT_EXACT_MATCH:
-        return WordMatchExact(doc_str, query_word, len);
-      case MT_HAMMING_DIST:
-        return WordMatchHammingDist(doc_str, query_word, len,
-                                    query->match_dist);
-      case MT_EDIT_DIST:
-        return WordMatchEditDist(doc_str, query_word, len, query->match_dist);
-      };
-    });
+  for (const auto &query : queries) {
+    futures.emplace_back(query.query_id,
+                         async(launch::async, MatchQuery, doc_str, query.str,
+                               query.match_dist, query.match_type));
+  }
 
+  for (auto &f : futures) {
+    int query_id = get<0>(f);
+    bool matching_query = get<1>(f).get();
     if (matching_query) {
-      query_ids.push_back(query->query_id);
+      query_ids.push_back(query_id);
     }
   }
 
