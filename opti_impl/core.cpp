@@ -1,6 +1,7 @@
 #include "../include/core.h"
 #include "helpers.cpp"
 #include "levenshtein.cpp"
+#include "thread_pool.cpp"
 
 #include <cstdio>
 #include <cstdlib>
@@ -101,7 +102,7 @@ bool WordMatchHammingDist(const char *doc_str, const char *query_word,
 bool WordMatchEditDist(const char *doc_str, const char *query_word,
                        int query_word_len, unsigned int match_dist) {
   return SomeWord(doc_str, [&](const char *word, int len) {
-    if (LevenshteinDistance(word, len, query_word, query_word_len) <=
+    if (MyersLevenshteinDistance(word, len, query_word, query_word_len) <=
         match_dist) {
       return true;
     }
@@ -129,11 +130,12 @@ bool MatchQuery(const char *doc_str, const char *query_str, int match_dist,
 ErrorCode MatchDocument(DocID doc_id, const char *doc_str) {
   vector<QueryID> query_ids;
   vector<tuple<QueryID, future<bool>>> futures;
+  ThreadPool pool(thread::hardware_concurrency());
 
   for (const auto &query : queries) {
     futures.emplace_back(query.query_id,
-                         async(launch::async, MatchQuery, doc_str, query.str,
-                               query.match_dist, query.match_type));
+                         pool.enqueue(MatchQuery, doc_str, query.str,
+                                      query.match_dist, query.match_type));
   }
 
   for (auto &f : futures) {
