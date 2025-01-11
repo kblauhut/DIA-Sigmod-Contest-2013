@@ -1,57 +1,52 @@
 #include "../include/core.h"
+#include <algorithm>
+#include <math.h>
+#include <string>
 
-// TODO: Add our own, unoptimized implementation of the Levenshtein distance
-int LevenshteinDistance(const char *a, int na, const char *b, int nb) {
-  int oo = 0x7FFFFFFF;
+int CalcVecIdx(int vec_len, int curr, int offset) {
+  int offset_mod = offset % vec_len;
+  return (vec_len + offset_mod + curr) % vec_len;
+}
 
-  static int T[2][MAX_WORD_LENGTH + 1];
+int LevenshteinDistance(const char *q_wrd, int q_wrd_len, const char *d_wrd,
+                        int d_wrd_len) {
+  int vec_len = q_wrd_len + 2;
+  int vec[vec_len];
 
-  int ia, ib;
+  // Initialize the first column with [0, 1, 2, 3, ... q_wrd_len, 0]
+  for (int j = 0; j < q_wrd_len + 1; j++) {
+    vec[j] = j;
+  }
+  vec[q_wrd_len + 1] = 0;
 
-  int cur = 0;
-  ia = 0;
+  int act_idx = q_wrd_len + 1;
 
-  for (ib = 0; ib <= nb; ib++)
-    T[cur][ib] = ib;
+  // For every row
+  for (int i = 1; i < d_wrd_len + 1; i++) {
+    // For every column
+    for (int j = 0; j < q_wrd_len + 1; j++) {
+      if (j == 0) {
+        vec[act_idx] = i;
+      } else {
+        char q_char = q_wrd[j - 1];
+        char d_char = d_wrd[i - 1];
+        int match = q_char == d_char;
 
-  cur = 1 - cur;
+        int top_idx = CalcVecIdx(vec_len, act_idx, -1);
+        int top = vec[top_idx];
 
-  for (ia = 1; ia <= na; ia++) {
-    for (ib = 0; ib <= nb; ib++)
-      T[cur][ib] = oo;
+        int left_idx = CalcVecIdx(vec_len, act_idx, -(vec_len - 1));
+        int left = vec[left_idx];
 
-    int ib_st = 0;
-    int ib_en = nb;
+        int top_left_idx = CalcVecIdx(vec_len, act_idx, -vec_len);
+        int top_left = vec[top_left_idx];
 
-    if (ib_st == 0) {
-      ib = 0;
-      T[cur][ib] = ia;
-      ib_st++;
+        vec[act_idx] = std::min(top + 1, std::min(left + 1, top_left + !match));
+      }
+
+      act_idx = CalcVecIdx(vec_len, act_idx, 1);
     }
-
-    for (ib = ib_st; ib <= ib_en; ib++) {
-      int ret = oo;
-
-      int d1 = T[1 - cur][ib] + 1;
-      int d2 = T[cur][ib - 1] + 1;
-      int d3 = T[1 - cur][ib - 1];
-      if (a[ia - 1] != b[ib - 1])
-        d3++;
-
-      if (d1 < ret)
-        ret = d1;
-      if (d2 < ret)
-        ret = d2;
-      if (d3 < ret)
-        ret = d3;
-
-      T[cur][ib] = ret;
-    }
-
-    cur = 1 - cur;
   }
 
-  int ret = T[1 - cur][nb];
-
-  return ret;
+  return vec[CalcVecIdx(vec_len, act_idx, -1)];
 }

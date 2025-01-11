@@ -102,7 +102,7 @@ bool WordMatchHammingDist(const char *doc_str, const char *query_word,
 bool WordMatchEditDist(const char *doc_str, const char *query_word,
                        int query_word_len, unsigned int match_dist) {
   return SomeWord(doc_str, [&](const char *word, int len) {
-    if (MyersLevenshteinDistance(word, len, query_word, query_word_len) <=
+    if (LevenshteinDistance(word, len, query_word, query_word_len) <=
         match_dist) {
       return true;
     }
