@@ -16,11 +16,7 @@ bool SomeWord(const char *str, function<bool(const char *, int len)> callback) {
     word_start_idx = i + 1;
   }
 
-  if (callback(str + word_start_idx, string_len - word_start_idx)) {
-    return true;
-  };
-
-  return false;
+  return callback(str + word_start_idx, string_len - word_start_idx);
 }
 
 bool EveryWord(const char *str,
@@ -39,9 +35,5 @@ bool EveryWord(const char *str,
     word_start_idx = i + 1;
   }
 
-  if (!callback(str + word_start_idx, string_len - word_start_idx)) {
-    return false;
-  };
-
-  return true;
+  return callback(str + word_start_idx, string_len - word_start_idx);
 }
