@@ -103,29 +103,38 @@ bool WordMatchHammingDist(const char *doc_str, const char *query_word,
 bool WordMatchEditDist(const char *doc_str, const char *query_word,
                        int query_word_len, unsigned int match_dist) {
   return SomeWord(doc_str, [&](const char *word, int len) {
-    if (LevenshteinMyers32(word, len, query_word, query_word_len) <=
-        match_dist) {
-      return true;
-    }
-    return false;
+    return LevenshteinMyers32(word, len, query_word, query_word_len) <=
+           match_dist;
   });
 }
 
 bool MatchQuery(const char *doc_str, const char *query_str, int match_dist,
                 MatchType match_type) {
-  return EveryWord(query_str, [&](const char *query_word, int len) {
-    switch (match_type) {
-    case MT_EXACT_MATCH:
+
+  function<bool(const char *, int len)> callback;
+
+  switch (match_type) {
+  case MT_EXACT_MATCH:
+    callback = [&](const char *query_word, int len) {
       return WordMatchExact(doc_str, query_word, len);
-    case MT_HAMMING_DIST:
-      return WordMatchHammingDist(doc_str, query_word, len, match_dist);
-    case MT_EDIT_DIST:
-      return WordMatchEditDist(doc_str, query_word, len, match_dist);
-    default:
-      fprintf(stderr, "Unknown match type: %d\n", match_type);
-      return false;
     };
-  });
+    break;
+  case MT_HAMMING_DIST:
+    callback = [&](const char *query_word, int len) {
+      return WordMatchHammingDist(doc_str, query_word, len, match_dist);
+    };
+    break;
+  case MT_EDIT_DIST:
+    callback = [&](const char *query_word, int len) {
+      return WordMatchEditDist(doc_str, query_word, len, match_dist);
+    };
+    break;
+  default:
+    fprintf(stderr, "Unknown match type: %d\n", match_type);
+    return false;
+  }
+
+  return EveryWord(query_str, callback);
 }
 
 ErrorCode MatchDocument(DocID doc_id, const char *doc_str) {
