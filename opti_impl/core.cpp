@@ -11,8 +11,6 @@
 #include <thread>
 #include <vector>
 
-using namespace std;
-
 struct Query {
   QueryID query_id;
   char str[MAX_QUERY_LENGTH];
@@ -26,9 +24,9 @@ struct Document {
   QueryID *query_ids;
 };
 
-ThreadPool pool(thread::hardware_concurrency());
-vector<Query> queries;
-vector<Document> docs;
+ThreadPool pool(std::thread::hardware_concurrency());
+std::vector<Query> queries;
+std::vector<Document> docs;
 
 ErrorCode InitializeIndex() { return EC_SUCCESS; }
 
@@ -62,8 +60,10 @@ ErrorCode GetNextAvailRes(DocID *p_doc_id, unsigned int *p_num_res,
   *p_doc_id = 0;
   *p_num_res = 0;
   *p_query_ids = 0;
-  if (docs.size() == 0)
+  if (docs.size() == 0) {
     return EC_NO_AVAIL_RES;
+  };
+
   *p_doc_id = docs[0].doc_id;
   *p_num_res = docs[0].num_res;
   *p_query_ids = docs[0].query_ids;
@@ -72,8 +72,8 @@ ErrorCode GetNextAvailRes(DocID *p_doc_id, unsigned int *p_num_res,
 }
 
 ErrorCode MatchDocument(DocID doc_id, const char *doc_str) {
-  vector<QueryID> query_ids;
-  vector<tuple<QueryID, future<bool>>> futures;
+  std::vector<QueryID> query_ids;
+  std::vector<std::tuple<QueryID, std::future<bool>>> futures;
 
   for (const auto &query : queries) {
     futures.emplace_back(query.query_id,
@@ -82,8 +82,8 @@ ErrorCode MatchDocument(DocID doc_id, const char *doc_str) {
   }
 
   for (auto &f : futures) {
-    int query_id = get<0>(f);
-    bool matching_query = get<1>(f).get();
+    int query_id = std::get<0>(f);
+    bool matching_query = std::get<1>(f).get();
     if (matching_query) {
       query_ids.push_back(query_id);
     }
