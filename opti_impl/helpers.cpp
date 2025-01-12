@@ -1,7 +1,7 @@
-#include <functional>
-using namespace std;
+#include "helpers.h"
 
-bool SomeWord(const char *str, function<bool(const char *, int len)> callback) {
+bool SomeWord(const char *str,
+              std::function<bool(const char *, int len)> callback) {
   int word_start_idx = 0;
   int string_len = strlen(str);
   for (int i = 0; i < string_len; i++) {
@@ -20,7 +20,7 @@ bool SomeWord(const char *str, function<bool(const char *, int len)> callback) {
 }
 
 bool EveryWord(const char *str,
-               function<bool(const char *, int len)> callback) {
+               std::function<bool(const char *, int len)> callback) {
   int word_start_idx = 0;
   int string_len = strlen(str);
   for (int i = 0; i < string_len; i++) {

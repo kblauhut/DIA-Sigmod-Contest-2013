@@ -1,7 +1,7 @@
 #include "../include/core.h"
 #include "helpers.cpp"
-#include "levenshtein_myers.cpp"
-#include "thread_pool.cpp"
+#include "query_matching.cpp"
+#include "threadpool.cpp"
 
 #include <cstdio>
 #include <cstdlib>
@@ -71,72 +71,6 @@ ErrorCode GetNextAvailRes(DocID *p_doc_id, unsigned int *p_num_res,
   return EC_SUCCESS;
 }
 
-bool WordMatchExact(const char *doc_str, const char *query_word,
-                    int query_word_len) {
-  return SomeWord(doc_str, [&](const char *word, int len) {
-    return len == query_word_len && strncmp(word, query_word, len) == 0;
-  });
-}
-
-bool WordMatchHammingDist(const char *doc_str, const char *query_word,
-                          int query_word_len, unsigned int match_dist) {
-
-  return SomeWord(doc_str, [&](const char *word, int len) {
-    if (len != query_word_len) {
-      return false;
-    }
-
-    unsigned int num_mismatches = 0;
-    for (int i = 0; i < len; i++) {
-      if (word[i] != query_word[i]) {
-        num_mismatches++;
-      }
-      if (num_mismatches > match_dist) {
-        return false;
-      }
-    }
-
-    return true;
-  });
-}
-
-bool WordMatchEditDist(const char *doc_str, const char *query_word,
-                       int query_word_len, unsigned int match_dist) {
-  return SomeWord(doc_str, [&](const char *word, int len) {
-    return LevenshteinMyers32(word, len, query_word, query_word_len) <=
-           match_dist;
-  });
-}
-
-bool MatchQuery(const char *doc_str, const char *query_str, int match_dist,
-                MatchType match_type) {
-
-  function<bool(const char *, int len)> callback;
-
-  switch (match_type) {
-  case MT_EXACT_MATCH:
-    callback = [&](const char *query_word, int len) {
-      return WordMatchExact(doc_str, query_word, len);
-    };
-    break;
-  case MT_HAMMING_DIST:
-    callback = [&](const char *query_word, int len) {
-      return WordMatchHammingDist(doc_str, query_word, len, match_dist);
-    };
-    break;
-  case MT_EDIT_DIST:
-    callback = [&](const char *query_word, int len) {
-      return WordMatchEditDist(doc_str, query_word, len, match_dist);
-    };
-    break;
-  default:
-    fprintf(stderr, "Unknown match type: %d\n", match_type);
-    return false;
-  }
-
-  return EveryWord(query_str, callback);
-}
-
 ErrorCode MatchDocument(DocID doc_id, const char *doc_str) {
   vector<QueryID> query_ids;
   vector<tuple<QueryID, future<bool>>> futures;
@@ -162,11 +96,9 @@ ErrorCode MatchDocument(DocID doc_id, const char *doc_str) {
   };
 
   if (doc.num_res) {
-    doc.query_ids = (unsigned int *)malloc(doc.num_res * sizeof(unsigned int));
-  }
-
-  for (int i = 0; i < doc.num_res; i++) {
-    doc.query_ids[i] = query_ids[i];
+    size_t byte_cnt = doc.num_res * sizeof(unsigned int);
+    doc.query_ids = (unsigned int *)malloc(byte_cnt);
+    memcpy(doc.query_ids, query_ids.data(), byte_cnt);
   }
 
   docs.push_back(doc);
