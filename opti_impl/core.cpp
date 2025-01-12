@@ -8,7 +8,9 @@
 #include <cstring>
 #include <functional>
 #include <future>
+#include <map>
 #include <thread>
+#include <unordered_set>
 #include <vector>
 
 struct Query {
@@ -27,6 +29,7 @@ struct Document {
 ThreadPool pool(std::thread::hardware_concurrency());
 std::vector<Query> queries;
 std::vector<Document> docs;
+std::map<std::string, std::unordered_set<QueryID>> word_map;
 
 ErrorCode InitializeIndex() { return EC_SUCCESS; }
 
@@ -41,6 +44,13 @@ ErrorCode StartQuery(QueryID query_id, const char *query_str,
   };
   strcpy(query.str, query_str);
   queries.push_back(query);
+
+  if (match_type == MT_EXACT_MATCH) {
+    ForEveryWord(query_str, [&](const char *word, int len) {
+      word_map[word].insert(query_id);
+    });
+  }
+
   return EC_SUCCESS;
 }
 
@@ -48,10 +58,19 @@ ErrorCode EndQuery(QueryID query_id) {
   unsigned int i, n = queries.size();
   for (i = 0; i < n; i++) {
     if (queries[i].query_id == query_id) {
+      Query query = queries[i];
+
+      if (query.match_type == MT_EXACT_MATCH) {
+        ForEveryWord(query.str, [&](const char *word, int len) {
+          word_map[word].erase(query_id);
+        });
+      }
+
       queries.erase(queries.begin() + i);
       break;
     }
   }
+
   return EC_SUCCESS;
 }
 
@@ -73,9 +92,33 @@ ErrorCode GetNextAvailRes(DocID *p_doc_id, unsigned int *p_num_res,
 
 ErrorCode MatchDocument(DocID doc_id, const char *doc_str) {
   std::vector<QueryID> query_ids;
+  std::vector<std::tuple<std::string, std::future<bool>>> exclude_futures;
   std::vector<std::tuple<QueryID, std::future<bool>>> futures;
+  std::unordered_set<QueryID> exclude_query_ids;
+
+  for (auto &entry : word_map) {
+    if (entry.second.size() < 7) { // Seems to be a good threshold for now
+      continue;
+    }
+
+    exclude_futures.emplace_back(entry.first, pool.enqueue(MatchQuery, doc_str,
+                                                           entry.first.c_str(),
+                                                           0, MT_EXACT_MATCH));
+  }
+
+  for (auto &f : exclude_futures) {
+    std::string word = std::get<0>(f);
+    bool matches = std::get<1>(f).get();
+    if (!matches) {
+      exclude_query_ids.insert(word_map[word].begin(), word_map[word].end());
+    }
+  }
 
   for (const auto &query : queries) {
+    if (exclude_query_ids.find(query.query_id) != exclude_query_ids.end()) {
+      continue;
+    }
+
     futures.emplace_back(query.query_id,
                          pool.enqueue(MatchQuery, doc_str, query.str,
                                       query.match_dist, query.match_type));
