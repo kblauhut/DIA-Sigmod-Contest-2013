@@ -8,8 +8,10 @@ int min_of_three(int a, int b, int c) {
   return c ^ ((ab_min ^ c) & -(ab_min < c)); // Minimum of ab_min and c
 }
 
-int LevenshteinDistance(const char *q_wrd, int q_wrd_len, const char *d_wrd,
-                        int d_wrd_len) {
+// My first attempt at implementing the Levenshtein distance algorithm
+// Didn't realize that the modulo operation was so damn slow
+int LevenshteinDistanceBadImpl(const char *q_wrd, int q_wrd_len,
+                               const char *d_wrd, int d_wrd_len) {
   int vec_len = q_wrd_len + 2;
   int vec[vec_len];
 
@@ -50,57 +52,32 @@ int LevenshteinDistance(const char *q_wrd, int q_wrd_len, const char *d_wrd,
   return vec[top_idx];
 }
 
-int EditDistance(const char *a, int na, const char *b, int nb) {
-  int oo = 0x7FFFFFFF;
+int LevenshteinDistance(const char *q_wrd, int q_wrd_len, const char *d_wrd,
+                        int d_wrd_len) {
+  int BUFF[2][q_wrd_len + 1];
 
-  int T[2][MAX_WORD_LENGTH + 1];
+  int *prev_row = BUFF[0];
+  int *curr_row = BUFF[1];
 
-  int ia, ib;
-
-  int cur = 0;
-  ia = 0;
-
-  for (ib = 0; ib <= nb; ib++)
-    T[cur][ib] = ib;
-
-  cur = 1 - cur;
-
-  for (ia = 1; ia <= na; ia++) {
-    for (ib = 0; ib <= nb; ib++)
-      T[cur][ib] = oo;
-
-    int ib_st = 0;
-    int ib_en = nb;
-
-    if (ib_st == 0) {
-      ib = 0;
-      T[cur][ib] = ia;
-      ib_st++;
-    }
-
-    for (ib = ib_st; ib <= ib_en; ib++) {
-      int ret = oo;
-
-      int d1 = T[1 - cur][ib] + 1;
-      int d2 = T[cur][ib - 1] + 1;
-      int d3 = T[1 - cur][ib - 1];
-      if (a[ia - 1] != b[ib - 1])
-        d3++;
-
-      if (d1 < ret)
-        ret = d1;
-      if (d2 < ret)
-        ret = d2;
-      if (d3 < ret)
-        ret = d3;
-
-      T[cur][ib] = ret;
-    }
-
-    cur = 1 - cur;
+  // Initialize first row
+  for (int j = 0; j <= q_wrd_len; j++) {
+    prev_row[j] = j;
   }
 
-  int ret = T[1 - cur][nb];
+  for (int i = 1; i <= d_wrd_len; i++) {
+    curr_row[0] = i;
+    for (int j = 1; j <= q_wrd_len; j++) {
+      int sub_cost = (q_wrd[j - 1] != d_wrd[i - 1]);
 
-  return ret;
+      curr_row[j] = std::min({
+          prev_row[j] + 1,           // Deletion
+          curr_row[j - 1] + 1,       // Insertion
+          prev_row[j - 1] + sub_cost // Substitution
+      });
+    }
+
+    std::swap(prev_row, curr_row);
+  }
+
+  return prev_row[q_wrd_len];
 }
