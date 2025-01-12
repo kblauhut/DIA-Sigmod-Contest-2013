@@ -26,6 +26,7 @@ struct Document {
   QueryID *query_ids;
 };
 
+ThreadPool pool(thread::hardware_concurrency());
 vector<Query> queries;
 vector<Document> docs;
 
@@ -130,7 +131,6 @@ bool MatchQuery(const char *doc_str, const char *query_str, int match_dist,
 ErrorCode MatchDocument(DocID doc_id, const char *doc_str) {
   vector<QueryID> query_ids;
   vector<tuple<QueryID, future<bool>>> futures;
-  ThreadPool pool(thread::hardware_concurrency());
 
   for (const auto &query : queries) {
     futures.emplace_back(query.query_id,
