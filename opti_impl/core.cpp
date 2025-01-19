@@ -2,6 +2,7 @@
 #include "helpers.cpp"
 #include "query_matching.cpp"
 #include "threadpool.cpp"
+#include "trie.cpp"
 
 #include <cstdio>
 #include <cstdlib>
@@ -45,11 +46,11 @@ ErrorCode StartQuery(QueryID query_id, const char *query_str,
   strcpy(query.str, query_str);
   queries.push_back(query);
 
-  if (match_type == MT_EXACT_MATCH) {
-    ForEveryWord(query_str, [&](const char *word, int len) {
-      word_map[word].insert(query_id);
-    });
-  }
+  // if (match_type == MT_EXACT_MATCH) {
+  //   ForEveryWord(query_str, [&](const char *word, int len) {
+  //     word_map[word].insert(query_id);
+  //   });
+  // }
 
   return EC_SUCCESS;
 }
@@ -58,13 +59,13 @@ ErrorCode EndQuery(QueryID query_id) {
   unsigned int i, n = queries.size();
   for (i = 0; i < n; i++) {
     if (queries[i].query_id == query_id) {
-      Query query = queries[i];
+      // Query query = queries[i];2
 
-      if (query.match_type == MT_EXACT_MATCH) {
-        ForEveryWord(query.str, [&](const char *word, int len) {
-          word_map[word].erase(query_id);
-        });
-      }
+      // if (query.match_type == MT_EXACT_MATCH) {
+      //   ForEveryWord(query.str, [&](const char *word, int len) {
+      //     word_map[word].erase(query_id);
+      //   });
+      // }
 
       queries.erase(queries.begin() + i);
       break;
@@ -91,46 +92,61 @@ ErrorCode GetNextAvailRes(DocID *p_doc_id, unsigned int *p_num_res,
 }
 
 ErrorCode MatchDocument(DocID doc_id, const char *doc_str) {
+  Trie trie = Trie();
+
+  ForEveryWord(doc_str,
+               [&](const char *word, int len) { trie.insert(word, len); });
+
   std::vector<QueryID> query_ids;
-  std::vector<std::tuple<std::string, std::future<bool>>> exclude_futures;
   std::vector<std::tuple<QueryID, std::future<bool>>> futures;
-  std::unordered_set<QueryID> exclude_query_ids;
 
-  for (auto &entry : word_map) {
-    if (entry.second.size() < 7) { // Seems to be a good threshold for now
-      continue;
-    }
+  // std::vector<std::tuple<std::string, std::future<bool>>> exclude_futures;
+  // std::unordered_set<QueryID> exclude_query_ids;
 
-    exclude_futures.emplace_back(entry.first, pool.enqueue(MatchQuery, doc_str,
-                                                           entry.first.c_str(),
-                                                           0, MT_EXACT_MATCH));
-  }
+  // for (auto &entry : word_map) {
+  //   if (entry.second.size() < 7) { // Seems to be a good threshold for now
+  //     continue;
+  //   }
 
-  for (auto &f : exclude_futures) {
-    std::string word = std::get<0>(f);
-    bool matches = std::get<1>(f).get();
-    if (!matches) {
-      exclude_query_ids.insert(word_map[word].begin(), word_map[word].end());
-    }
-  }
+  //   exclude_futures.emplace_back(entry.first, pool.enqueue(MatchQuery,
+  //   doc_str,
+  //                                                          entry.first.c_str(),
+  //                                                          0,
+  //                                                          MT_EXACT_MATCH));
+  // }
+
+  // for (auto &f : exclude_futures) {
+  //   std::string word = std::get<0>(f);
+  //   bool matches = std::get<1>(f).get();
+  //   if (!matches) {
+  //     exclude_query_ids.insert(word_map[word].begin(), word_map[word].end());
+  //   }
+  // }
 
   for (const auto &query : queries) {
-    if (exclude_query_ids.find(query.query_id) != exclude_query_ids.end()) {
-      continue;
-    }
+    // if (exclude_query_ids.find(query.query_id) != exclude_query_ids.end()) {
+    //   continue;
+    // }
 
-    futures.emplace_back(query.query_id,
-                         pool.enqueue(MatchQuery, doc_str, query.str,
-                                      query.match_dist, query.match_type));
-  }
+    // futures.emplace_back(query.query_id,
+    //                      pool.enqueue(MatchQuery, doc_str, query.str,
+    //                                   query.match_dist, query.match_type,
+    //                                   std::ref<Trie>(trie)));
 
-  for (auto &f : futures) {
-    int query_id = std::get<0>(f);
-    bool matching_query = std::get<1>(f).get();
+    bool matching_query = MatchQuery(doc_str, query.str, query.match_dist,
+                                     query.match_type, trie);
     if (matching_query) {
-      query_ids.push_back(query_id);
+      query_ids.push_back(query.query_id);
     }
   }
+
+  // for (auto &f : futures) {
+  //   int query_id = std::get<0>(f);
+  //   bool matching_query = std::get<1>(f).get();
+  //   if (matching_query) {
+  //     query_ids.push_back(query_id);
+  //   }
+  // }
 
   Document doc = {
       .doc_id = doc_id,

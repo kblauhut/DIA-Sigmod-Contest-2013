@@ -1,16 +1,10 @@
 #include "../include/core.h"
 #include "helpers.h"
 #include "levenshtein_myers.cpp"
+#include "trie.h"
 
 #include <cstring>
 #include <functional>
-
-bool WordMatchExact(const char *doc_str, const char *query_word,
-                    int query_word_len) {
-  return SomeWord(doc_str, [&](const char *word, int len) {
-    return len == query_word_len && strncmp(word, query_word, len) == 0;
-  });
-}
 
 bool WordMatchHammingDist(const char *doc_str, const char *query_word,
                           int query_word_len, unsigned int match_dist) {
@@ -43,14 +37,14 @@ bool WordMatchEditDist(const char *doc_str, const char *query_word,
 }
 
 bool MatchQuery(const char *doc_str, const char *query_str, int match_dist,
-                MatchType match_type) {
+                MatchType match_type, Trie &trie) {
 
   std::function<bool(const char *, int len)> callback;
 
   switch (match_type) {
   case MT_EXACT_MATCH:
     callback = [&](const char *query_word, int len) {
-      return WordMatchExact(doc_str, query_word, len);
+      return trie.search(query_word, len);
     };
     break;
   case MT_HAMMING_DIST:

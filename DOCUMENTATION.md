@@ -29,3 +29,17 @@ Take every leaf node of the tree where there are >x query ids
 Run the matcher for the given word
 If word doesnt match, add all query ids to a set of non matching queries
 Exclude these when iterating over all queries
+
+Now for handling all Cases:
+If EDIT_DISTANCE <= 3 doesnt match for a document then:
+EDIT_DISTANCE <= 2 wont match for that document
+HAMMING_DISTANCE <= 3 wont match for that document
+EXACT_MATCH wont match for that document
+
+If HAMMING_DISTANCE <= 3 doesnt match for a document then:
+EXACT_MATCH wont match for that document
+
+If EXACT_MATCH doesnt match for a document then:
+
+Now the issue is that we can't just always reduce the word query to EDIT_DISTANCE with the highest match distance
+Since then we wont be effective in excluding queries.
