@@ -46,13 +46,6 @@ ErrorCode StartQuery(QueryID query_id, const char *query_str,
   strcpy(query.str, query_str);
   queries.push_back(query);
 
-  // if (match_type == MT_EXACT_MATCH) {
-  //   ForEveryWord(query_str, [&](const char *word, int len) {
-  //     std::string word_capped = std::string(word, len);
-  //     word_map[word_capped].insert(query_id);
-  //   });
-  // }
-
   return EC_SUCCESS;
 }
 
@@ -60,14 +53,6 @@ ErrorCode EndQuery(QueryID query_id) {
   unsigned int i, n = queries.size();
   for (i = 0; i < n; i++) {
     if (queries[i].query_id == query_id) {
-      // Query query = queries[i];
-
-      // if (query.match_type == MT_EXACT_MATCH) {
-      //   ForEveryWord(query.str, [&](const char *word, int len) {
-      //     std::string word_capped = std::string(word, len);
-      //     word_map[word_capped].erase(query_id);
-      //   });
-      // }
 
       queries.erase(queries.begin() + i);
       break;
@@ -98,19 +83,6 @@ ErrorCode MatchDocument(DocID doc_id, const char *doc_str) {
 
   ForEveryWord(doc_str,
                [&](const char *word, int len) { trie.insert(word, len); });
-  // std::unordered_set<QueryID> exclude_query_ids;
-  // for (auto &entry : word_map) {
-  //   if (entry.second.size() < 7 // Seems to be a good threshold for now
-  //   ) {
-  //     continue;
-  //   }
-
-  //   bool matches =
-  //       trie.search(entry.first.c_str(), strlen(entry.first.c_str()));
-  //   if (!matches) {
-  //     exclude_query_ids.insert(entry.second.begin(), entry.second.end());
-  //   }
-  // }
 
   int max_query_id = 0;
   for (const auto &query : queries) {
@@ -124,14 +96,14 @@ ErrorCode MatchDocument(DocID doc_id, const char *doc_str) {
 
   size_t batchSize = 16; // The number of queries to process in each task
   for (size_t i = 0; i < queries.size(); i += batchSize) {
-    threadworker.add_task([&, i]() {
-      for (size_t j = 0; j < batchSize && (i + j) < queries.size(); ++j) {
-        MatchQuery(doc_str, doc_str_len, queries[i + j].str,
-                   queries[i + j].match_dist, queries[i + j].match_type,
-                   std::ref<Trie>(trie), queries[i + j].query_id,
-                   matching_queries);
-      }
-    });
+    // threadworker.add_task([&, i]() {
+    for (size_t j = 0; j < batchSize && (i + j) < queries.size(); ++j) {
+      MatchQuery(doc_str, doc_str_len, queries[i + j].str,
+                 queries[i + j].match_dist, queries[i + j].match_type,
+                 std::ref<Trie>(trie), queries[i + j].query_id,
+                 matching_queries);
+    }
+    // });
   }
 
   threadworker.wait_for_all();

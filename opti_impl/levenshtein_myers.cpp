@@ -1,7 +1,4 @@
 
-#include <cstdio>
-#include <stdint.h>
-
 #define ALPHABET_LEN 26
 
 // Only works for words with alphabet a-z and length of at most 32
