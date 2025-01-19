@@ -1,7 +1,7 @@
 #include "../include/core.h"
 #include "helpers.cpp"
 #include "query_matching.cpp"
-#include "threadpool.cpp"
+#include "threadworker.cpp"
 #include "trie.cpp"
 
 #include <cstdio>
@@ -27,7 +27,7 @@ struct Document {
   QueryID *query_ids;
 };
 
-ThreadPool pool(std::thread::hardware_concurrency());
+ThreadWorker threadworker(std::thread::hardware_concurrency());
 std::vector<Query> queries;
 std::vector<Document> docs;
 std::map<std::string, std::unordered_set<QueryID>> word_map;
@@ -100,6 +100,18 @@ ErrorCode MatchDocument(DocID doc_id, const char *doc_str) {
   std::vector<QueryID> query_ids;
   std::vector<std::tuple<QueryID, std::future<bool>>> futures;
 
+  int max_query_id = 0;
+  for (const auto &query : queries) {
+    max_query_id =
+        max_query_id > query.query_id ? max_query_id : query.query_id;
+  }
+
+  int *matching_queries = new int[max_query_id];
+  // Initialize all queries to false
+  for (int i = 0; i < max_query_id; i++) {
+    matching_queries[i] = 0;
+  }
+
   // std::vector<std::tuple<std::string, std::future<bool>>> exclude_futures;
   // std::unordered_set<QueryID> exclude_query_ids;
 
@@ -123,22 +135,12 @@ ErrorCode MatchDocument(DocID doc_id, const char *doc_str) {
   //   }
   // }
 
-  for (const auto &query : queries) {
-    // if (exclude_query_ids.find(query.query_id) != exclude_query_ids.end()) {
-    //   continue;
-    // }
-
-    // futures.emplace_back(query.query_id,
-    //                      pool.enqueue(MatchQuery, doc_str, query.str,
-    //                                   query.match_dist, query.match_type,
-    //                                   std::ref<Trie>(trie)));
-
-    bool matching_query = MatchQuery(doc_str, query.str, query.match_dist,
-                                     query.match_type, trie);
-    if (matching_query) {
-      query_ids.push_back(query.query_id);
-    }
-  }
+  // for (const auto &query : queries) {
+  //   futures.emplace_back(query.query_id,
+  //                        pool.enqueue(MatchQuery, doc_str, query.str,
+  //                                     query.match_dist, query.match_type,
+  //                                     std::ref<Trie>(trie)));
+  // }
 
   // for (auto &f : futures) {
   //   int query_id = std::get<0>(f);
@@ -147,6 +149,21 @@ ErrorCode MatchDocument(DocID doc_id, const char *doc_str) {
   //     query_ids.push_back(query_id);
   //   }
   // }
+
+  for (const auto &query : queries) {
+    threadworker.add_task([&]() {
+      MatchQuery(doc_str, query.str, query.match_dist, query.match_type,
+                 std::ref<Trie>(trie), query.query_id, matching_queries);
+    });
+  }
+
+  threadworker.wait_for_all();
+
+  for (int i = 0; i < max_query_id; i++) {
+    if (matching_queries[i]) {
+      query_ids.push_back(i + 1);
+    }
+  }
 
   Document doc = {
       .doc_id = doc_id,

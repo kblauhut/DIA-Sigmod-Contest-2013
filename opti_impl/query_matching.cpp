@@ -36,9 +36,9 @@ bool WordMatchEditDist(const char *doc_str, const char *query_word,
   });
 }
 
-bool MatchQuery(const char *doc_str, const char *query_str, int match_dist,
-                MatchType match_type, Trie &trie) {
-
+void MatchQuery(const char *doc_str, const char *query_str, int match_dist,
+                MatchType match_type, Trie &trie, int query_id,
+                int *matching_queries) {
   std::function<bool(const char *, int len)> callback;
 
   switch (match_type) {
@@ -59,8 +59,8 @@ bool MatchQuery(const char *doc_str, const char *query_str, int match_dist,
     break;
   default:
     fprintf(stderr, "Unknown match type: %d\n", match_type);
-    return false;
+    throw std::runtime_error("Unknown match type");
   }
 
-  return EveryWord(query_str, callback);
+  matching_queries[query_id - 1] = EveryWord(query_str, callback);
 }
