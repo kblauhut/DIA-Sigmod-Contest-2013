@@ -48,7 +48,8 @@ ErrorCode StartQuery(QueryID query_id, const char *query_str,
 
   // if (match_type == MT_EXACT_MATCH) {
   //   ForEveryWord(query_str, [&](const char *word, int len) {
-  //     word_map[word].insert(query_id);
+  //     std::string word_capped = std::string(word, len);
+  //     word_map[word_capped].insert(query_id);
   //   });
   // }
 
@@ -59,11 +60,12 @@ ErrorCode EndQuery(QueryID query_id) {
   unsigned int i, n = queries.size();
   for (i = 0; i < n; i++) {
     if (queries[i].query_id == query_id) {
-      // Query query = queries[i];2
+      // Query query = queries[i];
 
       // if (query.match_type == MT_EXACT_MATCH) {
       //   ForEveryWord(query.str, [&](const char *word, int len) {
-      //     word_map[word].erase(query_id);
+      //     std::string word_capped = std::string(word, len);
+      //     word_map[word_capped].erase(query_id);
       //   });
       // }
 
@@ -96,69 +98,45 @@ ErrorCode MatchDocument(DocID doc_id, const char *doc_str) {
 
   ForEveryWord(doc_str,
                [&](const char *word, int len) { trie.insert(word, len); });
+  // std::unordered_set<QueryID> exclude_query_ids;
+  // for (auto &entry : word_map) {
+  //   if (entry.second.size() < 7 // Seems to be a good threshold for now
+  //   ) {
+  //     continue;
+  //   }
 
-  std::vector<QueryID> query_ids;
-  std::vector<std::tuple<QueryID, std::future<bool>>> futures;
+  //   bool matches =
+  //       trie.search(entry.first.c_str(), strlen(entry.first.c_str()));
+  //   if (!matches) {
+  //     exclude_query_ids.insert(entry.second.begin(), entry.second.end());
+  //   }
+  // }
 
   int max_query_id = 0;
   for (const auto &query : queries) {
     max_query_id =
         max_query_id > query.query_id ? max_query_id : query.query_id;
   }
-
   int *matching_queries = new int[max_query_id];
   // Initialize all queries to false
-  for (int i = 0; i < max_query_id; i++) {
-    matching_queries[i] = 0;
-  }
+  memset(matching_queries, 0, max_query_id * sizeof(int));
+  int doc_str_len = strlen(doc_str);
 
-  // std::vector<std::tuple<std::string, std::future<bool>>> exclude_futures;
-  // std::unordered_set<QueryID> exclude_query_ids;
-
-  // for (auto &entry : word_map) {
-  //   if (entry.second.size() < 7) { // Seems to be a good threshold for now
-  //     continue;
-  //   }
-
-  //   exclude_futures.emplace_back(entry.first, pool.enqueue(MatchQuery,
-  //   doc_str,
-  //                                                          entry.first.c_str(),
-  //                                                          0,
-  //                                                          MT_EXACT_MATCH));
-  // }
-
-  // for (auto &f : exclude_futures) {
-  //   std::string word = std::get<0>(f);
-  //   bool matches = std::get<1>(f).get();
-  //   if (!matches) {
-  //     exclude_query_ids.insert(word_map[word].begin(), word_map[word].end());
-  //   }
-  // }
-
-  // for (const auto &query : queries) {
-  //   futures.emplace_back(query.query_id,
-  //                        pool.enqueue(MatchQuery, doc_str, query.str,
-  //                                     query.match_dist, query.match_type,
-  //                                     std::ref<Trie>(trie)));
-  // }
-
-  // for (auto &f : futures) {
-  //   int query_id = std::get<0>(f);
-  //   bool matching_query = std::get<1>(f).get();
-  //   if (matching_query) {
-  //     query_ids.push_back(query_id);
-  //   }
-  // }
-
-  for (const auto &query : queries) {
-    threadworker.add_task([&]() {
-      MatchQuery(doc_str, query.str, query.match_dist, query.match_type,
-                 std::ref<Trie>(trie), query.query_id, matching_queries);
+  size_t batchSize = 16; // The number of queries to process in each task
+  for (size_t i = 0; i < queries.size(); i += batchSize) {
+    threadworker.add_task([&, i]() {
+      for (size_t j = 0; j < batchSize && (i + j) < queries.size(); ++j) {
+        MatchQuery(doc_str, doc_str_len, queries[i + j].str,
+                   queries[i + j].match_dist, queries[i + j].match_type,
+                   std::ref<Trie>(trie), queries[i + j].query_id,
+                   matching_queries);
+      }
     });
   }
 
   threadworker.wait_for_all();
 
+  std::vector<QueryID> query_ids;
   for (int i = 0; i < max_query_id; i++) {
     if (matching_queries[i]) {
       query_ids.push_back(i + 1);

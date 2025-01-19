@@ -17,10 +17,9 @@ void ForEveryWord(const char *str,
   callback(str + word_start_idx, string_len - word_start_idx);
 }
 
-bool SomeWord(const char *str,
+bool SomeWord(const char *str, int string_len,
               std::function<bool(const char *, int len)> callback) {
   int word_start_idx = 0;
-  int string_len = strlen(str);
   for (int i = 0; i < string_len; i++) {
     if (str[i] != ' ') {
       continue;

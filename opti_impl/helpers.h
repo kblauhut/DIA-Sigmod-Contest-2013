@@ -2,7 +2,7 @@
 
 void ForEveryWord(const char *str,
                   std::function<void(const char *, int len)> callback);
-bool SomeWord(const char *str,
+bool SomeWord(const char *str, int string_len,
               std::function<bool(const char *, int len)> callback);
 bool EveryWord(const char *str,
                std::function<bool(const char *, int len)> callback);

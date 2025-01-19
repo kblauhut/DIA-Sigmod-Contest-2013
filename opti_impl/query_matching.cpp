@@ -6,9 +6,10 @@
 #include <cstring>
 #include <functional>
 
-bool WordMatchHammingDist(const char *doc_str, const char *query_word,
-                          int query_word_len, unsigned int match_dist) {
-  return SomeWord(doc_str, [&](const char *word, int len) {
+bool WordMatchHammingDist(const char *doc_str, int doc_str_len,
+                          const char *query_word, int query_word_len,
+                          unsigned int match_dist) {
+  return SomeWord(doc_str, doc_str_len, [&](const char *word, int len) {
     if (len != query_word_len) {
       return false;
     }
@@ -27,17 +28,18 @@ bool WordMatchHammingDist(const char *doc_str, const char *query_word,
   });
 }
 
-bool WordMatchEditDist(const char *doc_str, const char *query_word,
-                       int query_word_len, unsigned int match_dist) {
-  return SomeWord(doc_str, [&](const char *word, int len) {
+bool WordMatchEditDist(const char *doc_str, int doc_str_len,
+                       const char *query_word, int query_word_len,
+                       unsigned int match_dist) {
+  return SomeWord(doc_str, doc_str_len, [&](const char *word, int len) {
     return (abs(len - query_word_len) <= match_dist) &&
            LevenshteinMyers32(word, len, query_word, query_word_len) <=
                match_dist;
   });
 }
 
-void MatchQuery(const char *doc_str, const char *query_str, int match_dist,
-                MatchType match_type, Trie &trie, int query_id,
+void MatchQuery(const char *doc_str, int doc_str_len, const char *query_str,
+                int match_dist, MatchType match_type, Trie &trie, int query_id,
                 int *matching_queries) {
   std::function<bool(const char *, int len)> callback;
 
@@ -49,12 +51,14 @@ void MatchQuery(const char *doc_str, const char *query_str, int match_dist,
     break;
   case MT_HAMMING_DIST:
     callback = [&](const char *query_word, int len) {
-      return WordMatchHammingDist(doc_str, query_word, len, match_dist);
+      return WordMatchHammingDist(doc_str, doc_str_len, query_word, len,
+                                  match_dist);
     };
     break;
   case MT_EDIT_DIST:
     callback = [&](const char *query_word, int len) {
-      return WordMatchEditDist(doc_str, query_word, len, match_dist);
+      return WordMatchEditDist(doc_str, doc_str_len, query_word, len,
+                               match_dist);
     };
     break;
   default:
