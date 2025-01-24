@@ -34,12 +34,18 @@ static bool MatchesHamming(std::vector<std::string> &doc_words,
 
 static bool MatchesLevenshtein(std::vector<std::string> &doc_words,
                                std::vector<std::string> &query_words,
-                               int match_dist) {
+                               int match_dist, Trie &trie) {
   for (auto query_word : query_words) {
     bool match = false;
 
     char *query_word_c_ptr = (char *)query_word.c_str();
     int query_word_len = query_word.size();
+
+    // Cheap check if the word is in the trie and thus already matches
+    // seems to be a bit faster with this
+    if (trie.search(query_word_c_ptr, query_word_len)) {
+      continue;
+    }
 
     for (auto doc_word : doc_words) {
       int doc_word_len = doc_word.size();
@@ -82,14 +88,10 @@ void MatchQuery(std::vector<std::string> &doc_words,
   case MT_HAMMING_DIST:
     matching_queries[query_index] =
         MatchesHamming(doc_words, query_words, match_dist);
-    if (matching_queries[query_index]) {
-    }
     return;
   case MT_EDIT_DIST:
     matching_queries[query_index] =
-        MatchesLevenshtein(doc_words, query_words, match_dist);
-    if (matching_queries[query_index]) {
-    }
+        MatchesLevenshtein(doc_words, query_words, match_dist, trie);
     return;
   default:
     fprintf(stderr, "Unknown match type: %d\n", match_type);
