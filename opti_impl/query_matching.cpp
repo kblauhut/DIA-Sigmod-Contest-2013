@@ -9,12 +9,12 @@
 static bool MatchesHamming(std::vector<std::string> &doc_words,
                            std::vector<std::string> &query_words,
                            int match_dist) {
-  for (auto query_word : query_words) {
+  for (const auto &query_word : query_words) {
     bool match = false;
     char *query_word_c_ptr = (char *)query_word.c_str();
     int query_word_len = query_word.size();
 
-    for (auto doc_word : doc_words) {
+    for (const auto &doc_word : doc_words) {
       if (query_word_len != doc_word.size()) {
         continue;
       }
@@ -35,7 +35,7 @@ static bool MatchesHamming(std::vector<std::string> &doc_words,
 static bool MatchesLevenshtein(std::vector<std::string> &doc_words,
                                std::vector<std::string> &query_words,
                                int match_dist, Trie &trie) {
-  for (auto query_word : query_words) {
+  for (const auto &query_word : query_words) {
     bool match = false;
 
     char *query_word_c_ptr = (char *)query_word.c_str();
@@ -47,7 +47,7 @@ static bool MatchesLevenshtein(std::vector<std::string> &doc_words,
       continue;
     }
 
-    for (auto doc_word : doc_words) {
+    for (const auto &doc_word : doc_words) {
       int doc_word_len = doc_word.size();
       if (abs(doc_word_len - query_word_len) > match_dist) {
         continue;
@@ -78,7 +78,7 @@ void MatchQuery(std::vector<std::string> &doc_words,
   switch (match_type) {
   case MT_EXACT_MATCH:
     matching_queries[query_index] = true;
-    for (auto query_word : query_words) {
+    for (const auto &query_word : query_words) {
       if (!trie.search(query_word.c_str(), query_word.size())) {
         matching_queries[query_index] = false;
         return;

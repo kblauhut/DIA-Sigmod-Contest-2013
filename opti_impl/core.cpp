@@ -116,14 +116,14 @@ ErrorCode MatchDocument(DocID doc_id, const char *doc_str) {
   int *matching_queries = new int[max_query_id];
   memset(matching_queries, 0, max_query_id * sizeof(int));
 
-  for (size_t i = 0; i < std::thread::hardware_concurrency(); i++) {
-    threadworker.add_task([&]() {
-      ProcessQueries(std::ref(document_words), std::ref(trie),
-                     matching_queries);
-    });
-  }
+  // for (size_t i = 0; i < std::thread::hardware_concurrency(); i++) {
+  //   threadworker.add_task([&]() {
+  //     ProcessQueries(std::ref(document_words), std::ref(trie),
+  //                    matching_queries);
+  //   });
+  // }
 
-  threadworker.wait_for_all();
+  // threadworker.wait_for_all();
 
   // Without threading
   for (size_t i = 0; i < queries.size(); i++) {
