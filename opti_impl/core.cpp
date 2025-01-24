@@ -10,16 +10,14 @@
 #include <cstdlib>
 #include <cstring>
 #include <functional>
-#include <map>
 #include <thread>
-#include <unordered_set>
 #include <vector>
 
 struct Query {
   QueryID query_id;
-  char str[MAX_QUERY_LENGTH];
   MatchType match_type;
   unsigned int match_dist;
+  std::vector<std::string> query_words;
 };
 
 struct Document {
@@ -31,7 +29,6 @@ struct Document {
 ThreadWorker threadworker(std::thread::hardware_concurrency());
 std::vector<Query> queries;
 std::vector<Document> docs;
-std::map<std::string, std::unordered_set<QueryID>> word_map;
 
 ErrorCode InitializeIndex() { return EC_SUCCESS; }
 
@@ -44,7 +41,12 @@ ErrorCode StartQuery(QueryID query_id, const char *query_str,
       .match_type = match_type,
       .match_dist = match_dist,
   };
-  strcpy(query.str, query_str);
+
+  ForEveryWord(query_str, ([&](const char *query_word, int query_word_len) {
+                 query.query_words.push_back(
+                     std::string(query_word, query_word_len));
+               }));
+
   queries.push_back(query);
 
   return EC_SUCCESS;
@@ -90,9 +92,9 @@ void ProcessQueries(std::vector<std::string> &doc_words, Trie &trie,
       break;
     }
 
-    MatchQuery(doc_words, queries[query_idx].str, queries[query_idx].match_dist,
-               queries[query_idx].match_type, trie, queries[query_idx].query_id,
-               matching_queries);
+    MatchQuery(doc_words, std::ref(queries[query_idx].query_words),
+               queries[query_idx].match_dist, queries[query_idx].match_type,
+               trie, queries[query_idx].query_id, matching_queries);
   }
 }
 
@@ -125,9 +127,9 @@ ErrorCode MatchDocument(DocID doc_id, const char *doc_str) {
 
   // Without threading
   for (size_t i = 0; i < queries.size(); i++) {
-    MatchQuery(std::ref(document_words), queries[i].str, queries[i].match_dist,
-               queries[i].match_type, std::ref<Trie>(trie), queries[i].query_id,
-               matching_queries);
+    MatchQuery(std::ref(document_words), std::ref(queries[i].query_words),
+               queries[i].match_dist, queries[i].match_type,
+               std::ref<Trie>(trie), queries[i].query_id, matching_queries);
   }
 
   std::vector<QueryID> query_ids;

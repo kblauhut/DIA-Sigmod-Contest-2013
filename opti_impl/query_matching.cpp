@@ -1,57 +1,99 @@
 #include "../include/core.h"
 #include "hamming_simd.cpp"
-#include "helpers.h"
 #include "levenshtein_myers.cpp"
 #include "trie.h"
+
 #include <cstdio>
 #include <vector>
 
-void MatchQuery(std::vector<std::string> &doc_words, const char *query_str,
-                int match_dist, MatchType match_type, Trie &trie, int query_id,
+static bool MatchesHamming(std::vector<std::string> &doc_words,
+                           std::vector<std::string> &query_words,
+                           int match_dist) {
+  for (auto query_word : query_words) {
+    bool match = false;
+    char *query_word_c_ptr = (char *)query_word.c_str();
+    int query_word_len = query_word.size();
+
+    for (auto doc_word : doc_words) {
+      if (query_word_len != doc_word.size()) {
+        continue;
+      }
+
+      if (hamming_simd(query_word_c_ptr, doc_word.c_str(), query_word_len) <=
+          match_dist) {
+        match = true;
+      }
+    }
+
+    if (!match)
+      return false;
+  }
+
+  return true;
+}
+
+static bool MatchesLevenshtein(std::vector<std::string> &doc_words,
+                               std::vector<std::string> &query_words,
+                               int match_dist) {
+  for (auto query_word : query_words) {
+    bool match = false;
+
+    char *query_word_c_ptr = (char *)query_word.c_str();
+    int query_word_len = query_word.size();
+
+    for (auto doc_word : doc_words) {
+      int doc_word_len = doc_word.size();
+      if (abs(doc_word_len - query_word_len) > match_dist) {
+        continue;
+      }
+
+      int levenshtein_dist = LevenshteinMyers32(
+          query_word_c_ptr, query_word_len, doc_word.c_str(), doc_word_len);
+
+      if (levenshtein_dist <= match_dist) {
+        match = true;
+        break;
+      }
+    }
+
+    if (!match)
+      return false;
+  }
+
+  return true;
+}
+
+void MatchQuery(std::vector<std::string> &doc_words,
+                std::vector<std::string> &query_words, int match_dist,
+                MatchType match_type, Trie &trie, int query_id,
                 int *matching_queries) {
-  std::function<bool(const char *, int len)> callback;
+  int query_index = query_id - 1;
 
   switch (match_type) {
   case MT_EXACT_MATCH:
-    callback = [&](const char *query_word, int query_word_len) {
-      return trie.search(query_word, query_word_len);
-    };
-    break;
+    matching_queries[query_index] = true;
+    for (auto query_word : query_words) {
+      if (!trie.search(query_word.c_str(), query_word.size())) {
+        matching_queries[query_index] = false;
+        return;
+      }
+    }
+    return;
   case MT_HAMMING_DIST:
-    callback = [&](const char *query_word, int query_word_len) {
-      for (auto doc_word : doc_words) {
-        if (doc_word.size() != query_word_len) {
-          continue;
-        }
-
-        if (hamming_simd(query_word, doc_word.c_str(), query_word_len) <=
-            match_dist) {
-          return true;
-        }
-      }
-
-      return false;
-    };
-    break;
+    matching_queries[query_index] =
+        MatchesHamming(doc_words, query_words, match_dist);
+    if (matching_queries[query_index]) {
+    }
+    return;
   case MT_EDIT_DIST:
-    callback = [&](const char *query_word, int query_word_len) {
-      for (auto doc_word : doc_words) {
-        if (abs((int)doc_word.size() - query_word_len) > match_dist) {
-          continue;
-        }
-
-        if (LevenshteinMyers32(doc_word.c_str(), doc_word.size(), query_word,
-                               query_word_len) <= match_dist) {
-          return true;
-        }
-      }
-      return false;
-    };
-    break;
+    matching_queries[query_index] =
+        MatchesLevenshtein(doc_words, query_words, match_dist);
+    if (matching_queries[query_index]) {
+    }
+    return;
   default:
     fprintf(stderr, "Unknown match type: %d\n", match_type);
-    throw std::runtime_error("Unknown match type");
+    matching_queries[query_index] = false;
+    return;
   }
-
-  matching_queries[query_id - 1] = EveryWord(query_str, callback);
 }
