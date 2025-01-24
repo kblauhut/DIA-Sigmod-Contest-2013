@@ -4,6 +4,8 @@
 #include "threadworker.cpp"
 #include "trie.cpp"
 
+#include <cmath>
+#include <cstddef>
 #include <cstdio>
 #include <cstdlib>
 #include <cstring>
@@ -77,35 +79,52 @@ ErrorCode GetNextAvailRes(DocID *p_doc_id, unsigned int *p_num_res,
   return EC_SUCCESS;
 }
 
-ErrorCode MatchDocument(DocID doc_id, const char *doc_str) {
-  Trie trie = Trie();
+void ProcessQueryBatch(size_t start_idx, size_t end_idx, int *matching_queries,
+                       const char *doc_str, int doc_str_len, Trie &trie) {
+  for (size_t i = start_idx; i <= end_idx; i++) {
+    MatchQuery(doc_str, doc_str_len, queries[i].str, queries[i].match_dist,
+               queries[i].match_type, trie, queries[i].query_id,
+               matching_queries);
+  }
+}
 
+ErrorCode MatchDocument(DocID doc_id, const char *doc_str) {
+  int doc_str_len = strlen(doc_str);
+  int max_query_id = 0;
+  for (const auto &query : queries) {
+    max_query_id = fmax(max_query_id, query.query_id);
+  }
+
+  Trie trie = Trie();
   ForEveryWord(doc_str,
                [&](const char *word, int len) { trie.insert(word, len); });
 
-  int max_query_id = 0;
-  for (const auto &query : queries) {
-    max_query_id =
-        max_query_id > query.query_id ? max_query_id : query.query_id;
-  }
   int *matching_queries = new int[max_query_id];
-  // Initialize all queries to false
   memset(matching_queries, 0, max_query_id * sizeof(int));
-  int doc_str_len = strlen(doc_str);
 
-  size_t batchSize = 16; // The number of queries to process in each task
+  size_t batchSize = 16;
+
   for (size_t i = 0; i < queries.size(); i += batchSize) {
-    // threadworker.add_task([&, i]() {
-    for (size_t j = 0; j < batchSize && (i + j) < queries.size(); ++j) {
-      MatchQuery(doc_str, doc_str_len, queries[i + j].str,
-                 queries[i + j].match_dist, queries[i + j].match_type,
-                 std::ref<Trie>(trie), queries[i + j].query_id,
-                 matching_queries);
-    }
-    // });
+    size_t start_idx = i;
+    size_t end_idx = fmin(i + batchSize, queries.size()) - 1;
+
+    threadworker.add_task([&, start_idx, end_idx]() {
+      ProcessQueryBatch(start_idx, end_idx, matching_queries, doc_str,
+                        doc_str_len, std::ref(trie));
+    });
   }
 
   threadworker.wait_for_all();
+
+  // Without threading
+  // for (size_t i = 0; i < queries.size(); i += batchSize) {
+  //   for (size_t j = 0; j < batchSize && (i + j) < queries.size(); ++j) {
+  //     MatchQuery(doc_str, doc_str_len, queries[i + j].str,
+  //                queries[i + j].match_dist, queries[i + j].match_type,
+  //                std::ref<Trie>(trie), queries[i + j].query_id,
+  //                matching_queries);
+  //   }
+  // }
 
   std::vector<QueryID> query_ids;
   for (int i = 0; i < max_query_id; i++) {
