@@ -1,3 +1,4 @@
+#include <stdint.h>
 
 #define ALPHABET_LEN 26
 

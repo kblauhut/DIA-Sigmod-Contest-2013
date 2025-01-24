@@ -1,10 +1,8 @@
 #include "../include/core.h"
+#include "hamming_simd.cpp"
 #include "helpers.h"
 #include "levenshtein_myers.cpp"
 #include "trie.h"
-
-#include <cstring>
-#include <functional>
 
 bool WordMatchHammingDist(const char *doc_str, int doc_str_len,
                           const char *query_word, int query_word_len,
@@ -14,17 +12,7 @@ bool WordMatchHammingDist(const char *doc_str, int doc_str_len,
       return false;
     }
 
-    unsigned int num_mismatches = 0;
-    for (int i = 0; i < len; i++) {
-      if (word[i] != query_word[i]) {
-        num_mismatches++;
-      }
-      if (num_mismatches > match_dist) {
-        return false;
-      }
-    }
-
-    return true;
+    return hamming_simd(query_word, word, len) <= match_dist;
   });
 }
 

@@ -25,10 +25,10 @@
 #          Fuad Jamour <fuad.jamour@kaust.edu.sa>
 #
 # Current version: 1.0 (initial release)
-	
+
 
 # Build targets (your implementation targets should go in IMPL_O)
-TEST_O=test_driver/test.o 
+TEST_O=test_driver/test.o
 # IMPL_O=ref_impl/core.o
 IMPL_O=opti_impl/core.o
 
