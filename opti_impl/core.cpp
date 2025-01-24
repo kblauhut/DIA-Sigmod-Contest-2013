@@ -79,16 +79,23 @@ ErrorCode GetNextAvailRes(DocID *p_doc_id, unsigned int *p_num_res,
   return EC_SUCCESS;
 }
 
-void ProcessQueryBatch(size_t start_idx, size_t end_idx, int *matching_queries,
-                       const char *doc_str, int doc_str_len, Trie &trie) {
-  for (size_t i = start_idx; i <= end_idx; i++) {
-    MatchQuery(doc_str, doc_str_len, queries[i].str, queries[i].match_dist,
-               queries[i].match_type, trie, queries[i].query_id,
-               matching_queries);
+std::atomic<int> current_query_idx(0);
+void ProcessQueries(const char *doc_str, int doc_str_len, Trie &trie,
+                    int *matching_queries) {
+  while (true) {
+    int query_idx = current_query_idx++;
+    if (query_idx >= queries.size()) {
+      break;
+    }
+
+    MatchQuery(doc_str, doc_str_len, queries[query_idx].str,
+               queries[query_idx].match_dist, queries[query_idx].match_type,
+               trie, queries[query_idx].query_id, matching_queries);
   }
 }
 
 ErrorCode MatchDocument(DocID doc_id, const char *doc_str) {
+  current_query_idx = 0;
   int doc_str_len = strlen(doc_str);
   int max_query_id = 0;
   for (const auto &query : queries) {
@@ -102,15 +109,9 @@ ErrorCode MatchDocument(DocID doc_id, const char *doc_str) {
   int *matching_queries = new int[max_query_id];
   memset(matching_queries, 0, max_query_id * sizeof(int));
 
-  size_t batchSize = 16;
-
-  for (size_t i = 0; i < queries.size(); i += batchSize) {
-    size_t start_idx = i;
-    size_t end_idx = fmin(i + batchSize, queries.size()) - 1;
-
-    threadworker.add_task([&, start_idx, end_idx]() {
-      ProcessQueryBatch(start_idx, end_idx, matching_queries, doc_str,
-                        doc_str_len, std::ref(trie));
+  for (size_t i = 0; i < std::thread::hardware_concurrency(); i++) {
+    threadworker.add_task([&]() {
+      ProcessQueries(doc_str, doc_str_len, std::ref(trie), matching_queries);
     });
   }
 
