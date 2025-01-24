@@ -37,6 +37,9 @@ static const uint8_t LUT[17][16] = {
      0x7F, 0x7F, 0x7F, 0x7F},
 };
 
+// This function may lead to a segmentation fault when inputting strings that
+// are not a multiple of 16 bytes long. Anyway thats a problem to solve when it
+// happens to us...
 int hamming_simd(const char *q_wrd, const char *d_wrd, int len) {
   const uint8_t *q_ptr = (const uint8_t *)q_wrd;
   const uint8_t *d_ptr = (const uint8_t *)d_wrd;

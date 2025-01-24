@@ -3,28 +3,8 @@
 #include "helpers.h"
 #include "levenshtein_myers.cpp"
 #include "trie.h"
-
-bool WordMatchHammingDist(const char *doc_str, int doc_str_len,
-                          const char *query_word, int query_word_len,
-                          unsigned int match_dist) {
-  return SomeWord(doc_str, doc_str_len, [&](const char *word, int len) {
-    if (len != query_word_len) {
-      return false;
-    }
-
-    return hamming_simd(query_word, word, len) <= match_dist;
-  });
-}
-
-bool WordMatchEditDist(const char *doc_str, int doc_str_len,
-                       const char *query_word, int query_word_len,
-                       unsigned int match_dist) {
-  return SomeWord(doc_str, doc_str_len, [&](const char *word, int len) {
-    return (abs(len - query_word_len) <= match_dist) &&
-           LevenshteinMyers32(word, len, query_word, query_word_len) <=
-               match_dist;
-  });
-}
+#include <cmath>
+#include <cstdio>
 
 void MatchQuery(const char *doc_str, int doc_str_len, const char *query_str,
                 int match_dist, MatchType match_type, Trie &trie, int query_id,
@@ -33,20 +13,37 @@ void MatchQuery(const char *doc_str, int doc_str_len, const char *query_str,
 
   switch (match_type) {
   case MT_EXACT_MATCH:
-    callback = [&](const char *query_word, int len) {
-      return trie.search(query_word, len);
+    callback = [&](const char *query_word, int query_word_len) {
+      return trie.search(query_word, query_word_len);
     };
     break;
   case MT_HAMMING_DIST:
-    callback = [&](const char *query_word, int len) {
-      return WordMatchHammingDist(doc_str, doc_str_len, query_word, len,
-                                  match_dist);
+    callback = [&](const char *query_word, int query_word_len) {
+      return SomeWord(doc_str, doc_str_len,
+                      [&](const char *doc_word, int doc_word_len) {
+                        if (doc_word_len != query_word_len) {
+                          return false;
+                        }
+
+                        return hamming_simd(query_word, doc_word,
+                                            doc_word_len) <= match_dist;
+                      });
     };
     break;
   case MT_EDIT_DIST:
-    callback = [&](const char *query_word, int len) {
-      return WordMatchEditDist(doc_str, doc_str_len, query_word, len,
-                               match_dist);
+    callback = [&](const char *query_word, int query_word_len) {
+      return SomeWord(
+          doc_str, doc_str_len, [&](const char *doc_word, int doc_word_len) {
+            bool reachable_by_insert_delete =
+                abs(doc_word_len - query_word_len) <= match_dist;
+
+            if (!reachable_by_insert_delete) {
+              return false;
+            }
+
+            return LevenshteinMyers32(doc_word, doc_word_len, query_word,
+                                      query_word_len) <= match_dist;
+          });
     };
     break;
   default:

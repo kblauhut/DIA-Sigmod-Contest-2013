@@ -8,7 +8,6 @@
 #include <cstdlib>
 #include <cstring>
 #include <functional>
-#include <future>
 #include <map>
 #include <thread>
 #include <unordered_set>
