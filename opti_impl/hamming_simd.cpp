@@ -46,7 +46,6 @@ int hamming_simd(const char *q_wrd, const char *d_wrd, int len) {
   int dist = 0;
 
   while (len >= 16) {
-
     uint8x16_t mask = vld1q_u8(LUT[16]);
     uint8x16_t q = vld1q_u8(q_ptr);
     uint8x16_t d = vld1q_u8(d_ptr);

@@ -80,7 +80,7 @@ ErrorCode GetNextAvailRes(DocID *p_doc_id, unsigned int *p_num_res,
 }
 
 std::atomic<int> current_query_idx(0);
-void ProcessQueries(const char *doc_str, int doc_str_len, Trie &trie,
+void ProcessQueries(std::vector<std::string> &doc_words, Trie &trie,
                     int *matching_queries) {
   size_t query_size = queries.size();
 
@@ -90,44 +90,45 @@ void ProcessQueries(const char *doc_str, int doc_str_len, Trie &trie,
       break;
     }
 
-    MatchQuery(doc_str, doc_str_len, queries[query_idx].str,
-               queries[query_idx].match_dist, queries[query_idx].match_type,
-               trie, queries[query_idx].query_id, matching_queries);
+    MatchQuery(doc_words, queries[query_idx].str, queries[query_idx].match_dist,
+               queries[query_idx].match_type, trie, queries[query_idx].query_id,
+               matching_queries);
   }
 }
 
 ErrorCode MatchDocument(DocID doc_id, const char *doc_str) {
   current_query_idx = 0;
-  int doc_str_len = strlen(doc_str);
   int max_query_id = 0;
   for (const auto &query : queries) {
     max_query_id = fmax(max_query_id, query.query_id);
   }
 
   Trie trie = Trie();
-  ForEveryWord(doc_str,
-               [&](const char *word, int len) { trie.insert(word, len); });
+  std::vector<std::string> document_words;
+
+  ForEveryWord(doc_str, [&](const char *doc_word, int doc_word_len) {
+    trie.insert(doc_word, doc_word_len);
+    document_words.push_back(std::string(doc_word, doc_word_len));
+  });
 
   int *matching_queries = new int[max_query_id];
   memset(matching_queries, 0, max_query_id * sizeof(int));
 
-  for (size_t i = 0; i < std::thread::hardware_concurrency(); i++) {
-    threadworker.add_task([&]() {
-      ProcessQueries(doc_str, doc_str_len, std::ref(trie), matching_queries);
-    });
-  }
+  // for (size_t i = 0; i < std::thread::hardware_concurrency(); i++) {
+  //   threadworker.add_task([&]() {
+  //     ProcessQueries(std::ref(document_words), std::ref(trie),
+  //                    matching_queries);
+  //   });
+  // }
 
-  threadworker.wait_for_all();
+  // threadworker.wait_for_all();
 
   // Without threading
-  // for (size_t i = 0; i < queries.size(); i += batchSize) {
-  //   for (size_t j = 0; j < batchSize && (i + j) < queries.size(); ++j) {
-  //     MatchQuery(doc_str, doc_str_len, queries[i + j].str,
-  //                queries[i + j].match_dist, queries[i + j].match_type,
-  //                std::ref<Trie>(trie), queries[i + j].query_id,
-  //                matching_queries);
-  //   }
-  // }
+  for (size_t i = 0; i < queries.size(); i++) {
+    MatchQuery(std::ref(document_words), queries[i].str, queries[i].match_dist,
+               queries[i].match_type, std::ref<Trie>(trie), queries[i].query_id,
+               matching_queries);
+  }
 
   std::vector<QueryID> query_ids;
   for (int i = 0; i < max_query_id; i++) {
