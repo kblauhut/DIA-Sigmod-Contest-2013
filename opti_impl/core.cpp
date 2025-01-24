@@ -82,9 +82,11 @@ ErrorCode GetNextAvailRes(DocID *p_doc_id, unsigned int *p_num_res,
 std::atomic<int> current_query_idx(0);
 void ProcessQueries(const char *doc_str, int doc_str_len, Trie &trie,
                     int *matching_queries) {
+  size_t query_size = queries.size();
+
   while (true) {
     int query_idx = current_query_idx++;
-    if (query_idx >= queries.size()) {
+    if (query_idx >= query_size) {
       break;
     }
 
