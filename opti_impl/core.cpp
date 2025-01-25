@@ -1,8 +1,8 @@
 #include "../include/core.h"
+#include "efficient_trie.cpp"
 #include "helpers.cpp"
 #include "query_matching.cpp"
 #include "threadworker.cpp"
-#include "trie.cpp"
 
 #include <cmath>
 #include <cstddef>
@@ -82,7 +82,7 @@ ErrorCode GetNextAvailRes(DocID *p_doc_id, unsigned int *p_num_res,
 }
 
 std::atomic<int> current_query_idx(0);
-void ProcessQueries(std::vector<std::string> &doc_words, Trie &trie,
+void ProcessQueries(std::vector<std::string> &doc_words, XTrie &trie,
                     int *matching_queries) {
   size_t query_size = queries.size();
 
@@ -98,6 +98,8 @@ void ProcessQueries(std::vector<std::string> &doc_words, Trie &trie,
   }
 }
 
+XTrie trie = XTrie();
+
 ErrorCode MatchDocument(DocID doc_id, const char *doc_str) {
   current_query_idx = 0;
   int max_query_id = 0;
@@ -105,9 +107,9 @@ ErrorCode MatchDocument(DocID doc_id, const char *doc_str) {
     max_query_id = fmax(max_query_id, query.query_id);
   }
 
-  Trie trie = Trie();
   std::vector<std::string> document_words;
 
+  trie.invalidate_trie();
   ForEveryWord(doc_str, [&](const char *doc_word, int doc_word_len) {
     trie.insert(doc_word, doc_word_len);
     document_words.push_back(std::string(doc_word, doc_word_len));
@@ -122,7 +124,6 @@ ErrorCode MatchDocument(DocID doc_id, const char *doc_str) {
                      matching_queries);
     });
   }
-
   threadworker.wait_for_all();
 
   // // Without threading

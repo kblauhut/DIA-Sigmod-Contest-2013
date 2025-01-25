@@ -1,7 +1,7 @@
 #include "../include/core.h"
+#include "efficient_trie.h"
 #include "hamming_simd.cpp"
 #include "levenshtein_myers.cpp"
-#include "trie.h"
 #include <cstdio>
 #include <vector>
 
@@ -33,7 +33,7 @@ static bool MatchesHamming(std::vector<std::string> &doc_words,
 
 static bool MatchesLevenshtein(std::vector<std::string> &doc_words,
                                std::vector<std::string> &query_words,
-                               int match_dist, Trie &trie) {
+                               int match_dist, XTrie &trie) {
   for (const auto &query_word : query_words) {
     bool match = false;
 
@@ -86,7 +86,7 @@ static bool MatchesLevenshtein(std::vector<std::string> &doc_words,
 
 void MatchQuery(std::vector<std::string> &doc_words,
                 std::vector<std::string> &query_words, int match_dist,
-                MatchType match_type, Trie &trie, int query_id,
+                MatchType match_type, XTrie &trie, int query_id,
                 int *matching_queries) {
   int query_index = query_id - 1;
 
