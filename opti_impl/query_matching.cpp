@@ -2,7 +2,6 @@
 #include "hamming_simd.cpp"
 #include "levenshtein_myers.cpp"
 #include "trie.h"
-
 #include <cstdio>
 #include <vector>
 
@@ -47,16 +46,32 @@ static bool MatchesLevenshtein(std::vector<std::string> &doc_words,
       continue;
     }
 
-    for (const auto &doc_word : doc_words) {
-      int doc_word_len = doc_word.size();
-      if (abs(doc_word_len - query_word_len) > match_dist) {
+    Myers32x4Input input;
+    input.q_wrd = query_word_c_ptr;
+    input.q_wrd_len = query_word_len;
+
+    int idx_slot = 0;
+
+    // TODO: This is ugly and may break the tests when doc_words.size() is not 4
+    // aligned, fix this
+    for (size_t i = 0; i < doc_words.size(); i++) {
+      if (abs((int)doc_words[i].size() - query_word_len) > match_dist) {
         continue;
       }
 
-      int levenshtein_dist = LevenshteinMyers32(
-          query_word_c_ptr, query_word_len, doc_word.c_str(), doc_word_len);
+      input.d_wrd_lens[idx_slot] = doc_words[i].size();
+      input.d_wrds[idx_slot] = doc_words[i].c_str();
 
-      if (levenshtein_dist <= match_dist) {
+      idx_slot++;
+      if (idx_slot < 4) {
+        continue;
+      }
+
+      auto arr = LevenshteinMyers32x4Simd(input);
+      idx_slot = 0;
+
+      if (arr[0] <= match_dist || arr[1] <= match_dist ||
+          arr[2] <= match_dist || arr[3] <= match_dist) {
         match = true;
         break;
       }
