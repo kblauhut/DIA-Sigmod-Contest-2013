@@ -140,6 +140,8 @@ static bool MatchesLevenshtein(std::vector<std::string> &doc_words,
       continue;
     }
 
+    // This improves the performance of the small test and makes the large test
+    // slower -_-
     if (query_word_len <= 16 && max_doc_word_len <= 16) {
       if (!RunLevenshtein16(query_word_c_ptr, query_word_len, doc_words,
                             match_dist)) {
