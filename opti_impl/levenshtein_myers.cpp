@@ -51,7 +51,7 @@ struct Myers32x4Input {
   const char *q_wrd;
   int q_wrd_len;
   const char *d_wrds[4];
-  int d_wrd_lens[4];
+  uint32_t d_wrd_lens[4];
 };
 
 std::array<uint32_t, 4> LevenshteinMyers32x4Simd(const Myers32x4Input &input) {
@@ -59,7 +59,7 @@ std::array<uint32_t, 4> LevenshteinMyers32x4Simd(const Myers32x4Input &input) {
 
   const char *q_wrd = input.q_wrd;
   uint32_t q_wrd_len = input.q_wrd_len;
-  uint32x4_t scores = {q_wrd_len, q_wrd_len, q_wrd_len, q_wrd_len};
+  uint32x4_t scores = vdupq_n_u32(q_wrd_len);
 
   uint32x4_t vp = vdupq_n_u32(0xFFFFFFFF);
   uint32x4_t vn = vdupq_n_u32(0);
@@ -70,12 +70,7 @@ std::array<uint32_t, 4> LevenshteinMyers32x4Simd(const Myers32x4Input &input) {
     bm[q_wrd[i] - 'a'] |= 1 << i;
   }
 
-  uint32x4_t d_wrd_lens = {
-      (uint32_t)input.d_wrd_lens[0],
-      (uint32_t)input.d_wrd_lens[1],
-      (uint32_t)input.d_wrd_lens[2],
-      (uint32_t)input.d_wrd_lens[3],
-  };
+  uint32x4_t d_wrd_lens = vld1q_u32((const uint32_t *)input.d_wrd_lens);
 
   uint32x4_t q_wrd_len_ls = vshlq_u32(ONE_V, vdupq_n_u32(q_wrd_len - 1));
 

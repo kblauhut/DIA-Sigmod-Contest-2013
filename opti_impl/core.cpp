@@ -82,8 +82,8 @@ ErrorCode GetNextAvailRes(DocID *p_doc_id, unsigned int *p_num_res,
 }
 
 std::atomic<int> current_query_idx(0);
-void ProcessQueries(std::vector<std::string> &doc_words, XTrie &trie,
-                    int *matching_queries) {
+void ProcessQueries(std::vector<std::string> &doc_words, int max_doc_word_len,
+                    XTrie &trie, int *matching_queries) {
   size_t query_size = queries.size();
 
   while (true) {
@@ -92,7 +92,8 @@ void ProcessQueries(std::vector<std::string> &doc_words, XTrie &trie,
       break;
     }
 
-    MatchQuery(doc_words, std::ref(queries[query_idx].query_words),
+    MatchQuery(doc_words, max_doc_word_len,
+               std::ref(queries[query_idx].query_words),
                queries[query_idx].match_dist, queries[query_idx].match_type,
                trie, queries[query_idx].query_id, matching_queries);
   }
@@ -110,9 +111,12 @@ ErrorCode MatchDocument(DocID doc_id, const char *doc_str) {
   std::vector<std::string> document_words;
 
   trie.invalidate_trie();
+
+  int max_doc_word_len = 0;
   ForEveryWord(doc_str, [&](const char *doc_word, int doc_word_len) {
     trie.insert(doc_word, doc_word_len);
     document_words.push_back(std::string(doc_word, doc_word_len));
+    max_doc_word_len = std::max(max_doc_word_len, doc_word_len);
   });
 
   int *matching_queries = new int[max_query_id];
@@ -120,17 +124,18 @@ ErrorCode MatchDocument(DocID doc_id, const char *doc_str) {
 
   for (size_t i = 0; i < std::thread::hardware_concurrency(); i++) {
     threadworker.add_task([&]() {
-      ProcessQueries(std::ref(document_words), std::ref(trie),
+      ProcessQueries(std::ref(document_words), max_doc_word_len, std::ref(trie),
                      matching_queries);
     });
   }
   threadworker.wait_for_all();
 
-  // // Without threading
+  // Without threading
   // for (size_t i = 0; i < queries.size(); i++) {
-  //   MatchQuery(std::ref(document_words), std::ref(queries[i].query_words),
-  //              queries[i].match_dist, queries[i].match_type,
-  //              std::ref<Trie>(trie), queries[i].query_id, matching_queries);
+  //   MatchQuery(std::ref(document_words), max_doc_word_len,
+  //              std::ref(queries[i].query_words), queries[i].match_dist,
+  //              queries[i].match_type, std::ref<XTrie>(trie),
+  //              queries[i].query_id, matching_queries);
   // }
 
   std::vector<QueryID> query_ids;

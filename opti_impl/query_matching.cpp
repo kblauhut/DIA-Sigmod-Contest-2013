@@ -2,6 +2,7 @@
 #include "efficient_trie.h"
 #include "hamming_simd.cpp"
 #include "levenshtein_myers.cpp"
+#include "levenshtein_myers16x8.cpp"
 #include <cstddef>
 #include <cstdio>
 #include <vector>
@@ -32,12 +33,104 @@ static bool MatchesHamming(std::vector<std::string> &doc_words,
   return true;
 }
 
+static bool RunLevenshtein32(const char *q_wrd, int q_wrd_len,
+                             const std::vector<std::string> &doc_words,
+                             int match_dist
+
+) {
+  Myers32x4Input input = {
+      .q_wrd = q_wrd,
+      .q_wrd_len = q_wrd_len,
+      .d_wrds = {q_wrd, q_wrd, q_wrd, q_wrd},
+      .d_wrd_lens = {0, 0, 0, 0},
+  };
+
+  int idx_slot = 0;
+
+  for (size_t i = 0; i < doc_words.size(); i++) {
+    if (abs((int)doc_words[i].size() - q_wrd_len) > match_dist) {
+      continue;
+    }
+
+    input.d_wrd_lens[idx_slot] = doc_words[i].size();
+    input.d_wrds[idx_slot] = doc_words[i].c_str();
+
+    idx_slot++;
+    if (idx_slot < 4) {
+      continue;
+    }
+
+    auto arr = LevenshteinMyers32x4Simd(input);
+
+    for (int j = 0; j < idx_slot; j++) {
+      if (arr[j] <= match_dist)
+        return true;
+    }
+
+    idx_slot = 0;
+  }
+
+  // Flush the remaining words
+  auto arr = LevenshteinMyers32x4Simd(input);
+  for (int i = 0; i < idx_slot; i++) {
+    if (arr[i] <= match_dist) {
+      return true;
+    }
+  }
+
+  return false;
+}
+
+static bool RunLevenshtein16(const char *q_wrd, int q_wrd_len,
+                             const std::vector<std::string> &doc_words,
+                             int match_dist) {
+  Myers16x8Input input = {
+      .q_wrd = q_wrd,
+      .q_wrd_len = q_wrd_len,
+      .d_wrds = {q_wrd, q_wrd, q_wrd, q_wrd, q_wrd, q_wrd, q_wrd, q_wrd},
+      .d_wrd_lens = {0, 0, 0, 0, 0, 0, 0, 0},
+  };
+
+  int idx_slot = 0;
+
+  for (size_t i = 0; i < doc_words.size(); i++) {
+    if (abs((int)doc_words[i].size() - q_wrd_len) > match_dist) {
+      continue;
+    }
+
+    input.d_wrd_lens[idx_slot] = doc_words[i].size();
+    input.d_wrds[idx_slot] = doc_words[i].c_str();
+
+    idx_slot++;
+    if (idx_slot < 8) {
+      continue;
+    }
+
+    auto arr = LevenshteinMyers16x8Simd(input);
+
+    for (int j = 0; j < idx_slot; j++) {
+      if (arr[j] <= match_dist)
+        return true;
+    }
+
+    idx_slot = 0;
+  }
+
+  // Flush the remaining words
+  auto arr = LevenshteinMyers16x8Simd(input);
+  for (int i = 0; i < idx_slot; i++) {
+    if (arr[i] <= match_dist)
+      return true;
+  }
+
+  return false;
+}
+
 static bool MatchesLevenshtein(std::vector<std::string> &doc_words,
+                               int max_doc_word_len,
                                std::vector<std::string> &query_words,
                                int match_dist, XTrie &trie) {
   for (const auto &query_word : query_words) {
-    bool match = false;
-
     char *query_word_c_ptr = (char *)query_word.c_str();
     int query_word_len = query_word.size();
 
@@ -47,54 +140,22 @@ static bool MatchesLevenshtein(std::vector<std::string> &doc_words,
       continue;
     }
 
-    Myers32x4Input input;
-    input.q_wrd = query_word_c_ptr;
-    input.q_wrd_len = query_word_len;
-
-    int idx_slot = 0;
-
-    // TODO: This is ugly and may break the tests when doc_words.size() is not 4
-    // aligned, fix this
-    for (size_t i = 0; i < doc_words.size(); i++) {
-      if (abs((int)doc_words[i].size() - query_word_len) > match_dist) {
-        continue;
-      }
-
-      input.d_wrd_lens[idx_slot] = doc_words[i].size();
-      input.d_wrds[idx_slot] = doc_words[i].c_str();
-
-      idx_slot++;
-      if (idx_slot < 4) {
-        continue;
-      }
-
-      auto arr = LevenshteinMyers32x4Simd(input);
-      idx_slot = 0;
-
-      if (arr[0] <= match_dist || arr[1] <= match_dist ||
-          arr[2] <= match_dist || arr[3] <= match_dist) {
-        match = true;
-        break;
+    if (query_word_len <= 16 && max_doc_word_len <= 16) {
+      if (!RunLevenshtein16(query_word_c_ptr, query_word_len, doc_words,
+                            match_dist)) {
+        return false;
       }
     }
 
-    // Flush the remaining words
-    auto arr = LevenshteinMyers32x4Simd(input);
-    for (int i = 0; i < idx_slot; i++) {
-      if (arr[i] <= match_dist) {
-        match = true;
-        break;
-      }
-    }
-
-    if (!match)
+    if (!RunLevenshtein32(query_word_c_ptr, query_word_len, doc_words,
+                          match_dist)) {
       return false;
+    }
   }
-
   return true;
 }
 
-void MatchQuery(std::vector<std::string> &doc_words,
+void MatchQuery(std::vector<std::string> &doc_words, int max_doc_word_len,
                 std::vector<std::string> &query_words, int match_dist,
                 MatchType match_type, XTrie &trie, int query_id,
                 int *matching_queries) {
@@ -115,8 +176,8 @@ void MatchQuery(std::vector<std::string> &doc_words,
         MatchesHamming(doc_words, query_words, match_dist);
     return;
   case MT_EDIT_DIST:
-    matching_queries[query_index] =
-        MatchesLevenshtein(doc_words, query_words, match_dist, trie);
+    matching_queries[query_index] = MatchesLevenshtein(
+        doc_words, max_doc_word_len, query_words, match_dist, trie);
     return;
   default:
     fprintf(stderr, "Unknown match type: %d\n", match_type);
