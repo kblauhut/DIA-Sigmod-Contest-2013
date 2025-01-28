@@ -4,7 +4,7 @@
 XTrieNode::XTrieNode() : is_end(false), is_invalid(false) {}
 
 XTrie::XTrie() {
-  nodes = std::make_unique<std::array<XTrieNode, MAX_DOC_LENGTH>>();
+  nodes = std::make_unique<std::array<XTrieNode, MAX_NODES>>();
   root = &nodes->at(node_index++);
 }
 
@@ -54,6 +54,10 @@ void XTrie::invalidate_trie() {
   root->children.clear();
   root->is_end = false;
   root->is_invalid = false;
+
+  if (node_index < MAX_NODE_IDX) {
+    return;
+  }
 
   for (int i = 1; i < node_index; i++) {
     nodes->at(i).is_invalid = true;
