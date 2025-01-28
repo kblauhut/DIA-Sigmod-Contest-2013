@@ -2,6 +2,7 @@
 #include "efficient_trie.h"
 #include "hamming_simd.cpp"
 #include "levenshtein_myers.cpp"
+#include <cstddef>
 #include <cstdio>
 #include <vector>
 
@@ -72,6 +73,15 @@ static bool MatchesLevenshtein(std::vector<std::string> &doc_words,
 
       if (arr[0] <= match_dist || arr[1] <= match_dist ||
           arr[2] <= match_dist || arr[3] <= match_dist) {
+        match = true;
+        break;
+      }
+    }
+
+    // Flush the remaining words
+    auto arr = LevenshteinMyers32x4Simd(input);
+    for (int i = 0; i < idx_slot; i++) {
+      if (arr[i] <= match_dist) {
         match = true;
         break;
       }

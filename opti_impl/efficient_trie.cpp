@@ -14,26 +14,20 @@ void XTrie::insert(const char *word, int len) {
   for (int i = 0; i < len; i++) {
     char ch = word[i];
 
-    if (current->is_invalid) {
-      current->children.clear();
-
-      // This could be faster but there is a bug in this snippet and clearing
-      // the children seems to be enough
-      // for (auto &pair : current->children) {
-      //   pair.second->is_invalid = true;
-      //   pair.second->is_end = false;
-      // }
-    }
-
     if (current->children.find(ch) == current->children.end()) {
-      current->children[ch] = &nodes->at(node_index++);
+      auto &node = nodes->at(node_index++);
+
+      if (node.is_invalid) {
+        node.children.clear();
+        node.is_invalid = false;
+      }
+
+      current->children[ch] = &node;
     }
 
-    current->is_invalid = false;
     current = current->children[ch];
   }
 
-  current->is_invalid = false;
   current->is_end = true;
 }
 
@@ -56,4 +50,15 @@ bool XTrie::search(const char *word, int len) {
   return current->is_end && !current->is_invalid;
 }
 
-void XTrie::invalidate_trie() { root->is_invalid = true; }
+void XTrie::invalidate_trie() {
+  root->children.clear();
+  root->is_end = false;
+  root->is_invalid = false;
+
+  for (int i = 1; i < node_index; i++) {
+    nodes->at(i).is_invalid = true;
+    nodes->at(i).is_end = false;
+  }
+
+  node_index = 1;
+}
